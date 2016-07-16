@@ -1,0 +1,98 @@
+list buttons = ["On", "Off", "Drill","-"];
+string dialogInfo = "\nPlease make a choice.";
+ 
+key ToucherID;
+integer dialogChannel;
+integer listenHandle;
+ 
+default
+{
+    state_entry()
+    {
+        dialogChannel = -1 - (integer)("0x" + llGetSubString( (string)llGetKey(), -7, -1) );
+    }
+ 
+    touch_start(integer num_detected)
+    {
+        ToucherID = llDetectedKey(0);
+        llListenRemove(listenHandle);
+        listenHandle = llListen(dialogChannel, "", ToucherID, "");
+        llDialog(ToucherID, dialogInfo, buttons, dialogChannel);
+       
+    }
+ 
+    listen(integer channel, string name, key id, string message)
+    {
+        if (message == "-")
+        {
+            llDialog(ToucherID, dialogInfo, buttons, dialogChannel);
+            return;
+        }
+ 
+        llListenRemove(listenHandle);
+        //  stop timer since the menu was clicked
+        llSetTimerEvent(0);
+ 
+        if (message == "On")
+        {
+             //Turn Light Bulb ON
+                llPlaySound("BUTTON1",0.5);
+                llWhisper(7577, "start"); 
+                llSetPrimitiveParams([PRIM_FULLBRIGHT,ALL_SIDES,TRUE]);
+                llSleep(3); 
+                 llResetScript(); 
+        }
+        else if (message == "Off")
+        {
+            //Turn Light Bulb ON
+                llPlaySound("BUTTON1",0.5);
+                llWhisper(7577, "stop"); 
+                llSetPrimitiveParams([PRIM_FULLBRIGHT,ALL_SIDES,TRUE]); 
+                llWhisper(7577, "stopped");
+                llSleep(3);
+                llResetScript();
+        }
+        else
+        {
+             llSetTimerEvent(0.0); // Kill timer.
+                state drilling; // Start drilling that will start the timer to rezz a prim that will contain water.
+        }
+    }
+    
+ state drilling // starts the drilling process. Once complete, it will move to state_water
+{
+    state_entry()
+    {
+         llSetTimerEvent(period);  // This triggers the timer every 10 seconds for drying countdown.
+    }
+    
+    timer()
+    {
+        timer_count++; // Increment the counter as to indicate the number of seconds passed.  For example, this timer is triggered every 10 seconds.  If timer_count  = 2, then timer_count * period= 2*10 = 20 seconds have passed.
+        float seconds_passed = timer_count * period;  // See previous line.
+        float percent_completed = 100.0*(seconds_passed/torezz_lifetime); // This calcualted the percentage of time passed for drilling.  100% would imply done drilling.
+        // Now that we have the percent compelted, we need to build the string to place above the prim.
+        string temp_message = llGetSubString((string)percent_completed, 0, 1)+"% complete."; // We cast the float value of percent complete into a string since we need to turn it into text.  All text utilized by llSetText() must be of type string.  So, since percent_completed is a float, we cast it into a string via (string)percent_completed.  Notice, we only take the first two digits in percent_completed using llGetSubString().  You can learn about it at http://wiki.secondlife.com/wiki/LlGetSubString
+        //Now display temp_message above the prim.
+        llSetText(temp_message, <1,1,1>, 1); // Display it in white       
+        // Once we get to 100% completion, we blank out the floating text and go to state water.
+        if(seconds_passed >= torezz_lifetime)  // If this is true, the prim is at least as old as torezz_liftime.  
+        {
+            llSetText("", ZERO_VECTOR, 1); // Blank out the floating text. 
+            state water;  // Change states.  We now exit the default state as to Comment (single-line) enter the dry state.
+        }
+    }
+     
+} // End of drilling state
+
+state water  // The wood is dry and ready for the taking.
+{
+    state_entry()
+    {
+        llRezObject("Water!", llGetPos() + <0.0,0.0,-0.75>, <0.0,0.0,0.0>, <0.0,0.0,0.0,0.0>, 0);  // This rezzes the dry wood.
+        llSay(0,"Sit on me to Collect Water"); // Inform on LOCAL_CHANNEL of the rezzing event.
+        llSetTimerEvent(0.0); // Stop all timers, just in case.  If a timer goes rogue, it'll lag the simulator.
+        //llDie();  // Scripted prim deletes itself, leaving only dry wood behind.  Only enable this after you have a copy for your personal inventory.
+        llSleep(120);
+        llResetScript();
+    }
